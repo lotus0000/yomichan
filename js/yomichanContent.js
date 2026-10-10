@@ -55,7 +55,7 @@ var ymcContent = {
 		ymcContent.closePopup();
 		window.removeEventListener('mousedown', this.onMouseDown, false);
 		window.removeEventListener('mouseup', this.onMouseUp, false);
-		window.removeEventListener('selectionchange', this.onSelectionchange,
+		document.removeEventListener('selectionchange', this.onSelectionchange,
 				false);
 	},
 	// マウスアップ
@@ -169,7 +169,6 @@ var ymcContent = {
 		let width = Math.ceil(Math.min(maxWidth,
 				range.getBoundingClientRect().width));
 		popup.style.width = Math.ceil(width) + "px";
-		window.getSelection().removeRange(range);
 
 		// 表示する位置を計算
 		let right = document.documentElement.clientWidth
@@ -388,7 +387,6 @@ var ymcContent = {
 			popup.style.width = Math.ceil(Math.min(maxWidth,
 					range.getBoundingClientRect().width)) + "px";
 			popup.style.height = 'auto';
-			window.getSelection().removeRange(range);
 		}
 
 		// 設定ポップアップを閉じる

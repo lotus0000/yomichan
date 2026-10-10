@@ -19,7 +19,8 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
 	case 'getFurigana':
 		// ふりがなを表示する要求
 		ymcMain.getFurigana(request.data, sendResponse);
-		break;
+		// 非同期でsendResponseを呼ぶため、メッセージチャネルを開いたままにする
+		return true;
 	default:
 		console.log("認識できないタイプ.request=" + request);
 	}

@@ -1,41 +1,52 @@
 importScripts("../lib/kuromoji/kuromoji.js")
 
 
-//辞書の置き場
-var DIC_URL = "chrome-extension://lib/kuromoji/dict/";
+//辞書の置き場（拡張機能のルートからの絶対パス）
+var DIC_URL = "/lib/kuromoji/dict/";
+// kuromoji初期化：Service Workerが再起動されても、辞書の読み込み完了を待てるようにPromiseで保持
+var tokenizerReady = new Promise(function(resolve, reject) {
+	kuromoji.builder({
+		dicPath : DIC_URL
+	}).build(function(error, _tokenizer) {
+		if (error != null) {
+			console.log(error);
+			reject(error);
+			return;
+		}
+		resolve(_tokenizer);
+	});
+});
 var ymcMain = {
 	enabled : false,
-	// tokenizerObjオブジェクト
-	tokenizer : null,
-
+	// Local Storageから有効／無効の状態を読み込んだら解決するPromise
+	enabledReady : null,
 	// 初期処理
 	init : function() {
-		// kuromoji初期化
-		kuromoji.builder({
-			dicPath : DIC_URL
-		}).build(function(error, _tokenizer) {
-			if (error != null) {
-				console.log(error);
-			}
-			tokenizer = _tokenizer;
-		});
-		chrome.storage.local.get("yomichanEnabled", function(value) {
-			ymcMain.enabled = value.yomichanEnabled;
-			if (ymcMain.enabled === undefined) {
-				ymcMain.enabled=true;
-			}
-			// アイコン設定
-			ymcMain.setIcon();
-			// Local Storageに保存
-			chrome.storage.local.set({
-				'yomichanEnabled' : ymcMain.enabled
-			}, function() {
+		// Service Workerの起動直後にcontentから問い合わせが来ても、状態の読み込み完了を待てるようにする
+		ymcMain.enabledReady = new Promise(function(resolve) {
+			chrome.storage.local.get("yomichanEnabled", function(value) {
+				ymcMain.enabled = value.yomichanEnabled;
+				if (ymcMain.enabled === undefined) {
+					ymcMain.enabled=true;
+				}
+				// アイコン設定
+				ymcMain.setIcon();
+				// Local Storageに保存
+				chrome.storage.local.set({
+					'yomichanEnabled' : ymcMain.enabled
+				}, function() {
+				});
+				resolve();
 			});
 		});
-		
 	},
 	// クリックすると、有効／無効の設定
 	onClicked : function(tab) {
+		ymcMain.enabledReady.then(function() {
+			ymcMain.toggleEnabled(tab);
+		});
+	},
+	toggleEnabled : function(tab) {
 		ymcMain.enabled = !ymcMain.enabled;
 		chrome.storage.local.set({
 			'yomichanEnabled' : ymcMain.enabled
@@ -54,28 +65,45 @@ var ymcMain = {
 	setIcon : function() {
 		if (ymcMain.enabled) {
 			chrome.action.setIcon({
-				path : "../img/yomichan_enable.png"
+				path : "/img/yomichan_enable.png"
 			});
 		} else {
 			chrome.action.setIcon({
-				path : "../img/yomichan_disable.png"
+				path : "/img/yomichan_disable.png"
 			});
 		}
 	},
 	// 有効／無効の状態をcontentに送信する
 	sendEnabled : function(tabId) {
+		ymcMain.enabledReady.then(function() {
+			ymcMain.sendEnabledNow(tabId);
+		});
+	},
+	sendEnabledNow : function(tabId) {
 		if (ymcMain.enabled) {
 			chrome.tabs.sendMessage(tabId, {
 				"type" : "enableYomichan"
+			}).catch(function() {
+				// content scriptがないタブ（chrome://等）は無視
 			});
 		} else {
 			chrome.tabs.sendMessage(tabId, {
 				"type" : "disableYomichan"
+			}).catch(function() {
+				// content scriptがないタブ（chrome://等）は無視
 			});
 		}
 	},
-	// ふりがなを付ける
+	// ふりがなを付ける（辞書の読み込み完了を待ってから処理）
 	getFurigana : function(text, sendResponse) {
+		tokenizerReady.then(function(tokenizer) {
+			ymcMain.buildFurigana(tokenizer, text, sendResponse);
+		}).catch(function(error) {
+			console.log(error);
+			sendResponse();
+		});
+	},
+	buildFurigana : function(tokenizer, text, sendResponse) {
 		var resultHtml = "";
 		if (text == null || text == "") {
 			sendResponse();
