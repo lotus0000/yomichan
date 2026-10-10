@@ -5,6 +5,7 @@
 	border-radius: 5px;
 	padding: 5px;
 	box-sizing: content-box;
+	cursor: move;
 }
 
 .yomichan-popup>.yomichan-content {
@@ -105,6 +106,7 @@
 
 .yomichan-popup>.yomichan-setting-popup {
 	z-index: 999999999;
+	cursor: default;
 	background-color: #DEF0CE;
 	border-color: #808080;
 	width: 120px;

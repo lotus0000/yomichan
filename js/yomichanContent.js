@@ -5,6 +5,8 @@ var ymcContent = {
 	expand : false,
 	settingExpand : false,
 	clickSettingPopup : false, 
+	// ポップアップをドラッグ中かどうか
+	dragging : false,
 	minFontSize : 10,
 	maxFontSize : 20,
 	noteFontSizeDiff: 4,
@@ -60,7 +62,7 @@ var ymcContent = {
 	},
 	// マウスアップ
 	onMouseUp : function(event) {
-		if (ymcContent.clickSettingPopup) {
+		if (ymcContent.clickSettingPopup || ymcContent.dragging) {
 			return;
 		}
 		var selection = ymcContent.getSelection();
@@ -111,7 +113,7 @@ var ymcContent = {
 	},
 	// 選択内容が変わるイベント
 	onSelectionchange : function(event) {
-		if (ymcContent.clickSettingPopup) {
+		if (ymcContent.clickSettingPopup || ymcContent.dragging) {
 			return;
 		}
 		ymcContent.closePopup();
@@ -204,6 +206,44 @@ var ymcContent = {
 		}, false);
 
 		togglePopup(ymcContent.expand, true);
+
+		// ポップアップをドラッグして移動する
+		popup.addEventListener('mousedown', function(event) {
+			// ボタン・設定ポップアップ上では移動しない
+			if (event.button != 0 || event.target.closest('button, .yomichan-setting-popup')) {
+				return;
+			}
+			// 選択範囲が解除されてポップアップが閉じないようにする
+			event.preventDefault();
+			ymcContent.dragging = true;
+			// right/bottom基準の位置をleft/top基準に切り替える
+			let startLeft = popup.offsetLeft;
+			let startTop = popup.offsetTop;
+			popup.style.right = 'auto';
+			popup.style.bottom = 'auto';
+			popup.style.left = startLeft + 'px';
+			popup.style.top = startTop + 'px';
+			// ドラッグ中はアニメーションしない
+			popup.style.transition = 'none';
+			let startX = event.pageX;
+			let startY = event.pageY;
+
+			function onDragMove(e) {
+				popup.style.left = (startLeft + e.pageX - startX) + 'px';
+				popup.style.top = (startTop + e.pageY - startY) + 'px';
+			}
+			function onDragEnd() {
+				document.removeEventListener('mousemove', onDragMove, true);
+				document.removeEventListener('mouseup', onDragEnd, true);
+				popup.style.transition = '';
+				// windowのmouseupイベントが処理された後でフラグを戻す
+				setTimeout(function() {
+					ymcContent.dragging = false;
+				}, 0);
+			}
+			document.addEventListener('mousemove', onDragMove, true);
+			document.addEventListener('mouseup', onDragEnd, true);
+		}, false);
 
 		// ポップアップの展開・縮小を設定
 		function togglePopup(expand, isInit) {
